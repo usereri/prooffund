@@ -107,7 +107,7 @@ contract CommunityVault is Ownable, ReentrancyGuard {
         require(!hasVoted[requestId][msg.sender], "Already voted on this request");
 
         // Verify voter has a ProfileNFT
-        uint256 voterTokenId = IUserProfileNFT(IContractRegistry(registry).userProfileNFT()).getTokenIdByWallet(msg.sender);
+        uint256 voterTokenId = IVaultProfileNFT(IVaultRegistry(registry).userProfileNFT()).getTokenIdByWallet(msg.sender);
         require(voterTokenId != 0, "Must have a ProfileNFT to vote");
 
         hasVoted[requestId][msg.sender] = true;
@@ -131,7 +131,7 @@ contract CommunityVault is Ownable, ReentrancyGuard {
         Request storage request = requests[requestId];
         require(!request.executed, "Request already executed");
 
-        uint256 totalSupply = IUserProfileNFT(IContractRegistry(registry).userProfileNFT()).totalSupply();
+        uint256 totalSupply = IVaultProfileNFT(IVaultRegistry(registry).userProfileNFT()).totalSupply();
         require(totalSupply > 0, "No profile NFTs exist");
 
         // Calculate quorum percentage
@@ -162,11 +162,11 @@ contract CommunityVault is Ownable, ReentrancyGuard {
 }
 
 // Minimal interfaces
-interface IContractRegistry {
+interface IVaultRegistry {
     function userProfileNFT() external view returns (address);
 }
 
-interface IUserProfileNFT {
+interface IVaultProfileNFT {
     function totalSupply() external view returns (uint256);
     function getTokenIdByWallet(address wallet) external view returns (uint256);
 }

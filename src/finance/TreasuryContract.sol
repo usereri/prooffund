@@ -171,7 +171,7 @@ contract TreasuryContract is Ownable, ReentrancyGuard {
         proposal.nominee.transfer(amountToWinner);
 
         // Send 30% to CommunityVault
-        address vaultAddress = IContractRegistry(registry).communityVault();
+        address vaultAddress = ITreasuryContractRegistry(registry).communityVault();
         (bool success, ) = vaultAddress.call{value: amountToVault}("");
         require(success, "Transfer to vault failed");
 

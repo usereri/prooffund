@@ -127,9 +127,9 @@ contract MeetingContract is Ownable, IERC721Receiver {
         // For now, return a placeholder that the frontend can resolve
         return string(abi.encodePacked(
             "https://api.prooffund.com/meeting-metadata/",
-            Strings.toString(meetingId),
+            StringUtils.toString(meetingId),
             "/",
-            Strings.toString(index)
+            StringUtils.toString(index)
         ));
     }
 
@@ -160,7 +160,7 @@ interface IMeetingNFT {
 }
 
 // String utility for concatenating metadata URIs
-library Strings {
+library StringUtils {
     function toString(uint256 value) internal pure returns (string memory) {
         if (value == 0) {
             return "0";

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Build artifacts (per-package gitignores handle more specific ones)
+packages/contracts/cache/
+packages/contracts/out/
+packages/contracts/abi/
+packages/contracts/broadcast/*/31337/
+packages/contracts/broadcast/**/dry-run/
+
+# Next.js
+packages/app/.next/
+packages/app/out/
+
+# Misc
+.DS_Store
+*.log

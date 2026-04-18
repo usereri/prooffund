@@ -12,29 +12,36 @@ contract AttendanceFlowTest is Test {
     address deployer = address(this);
     address host = makeAddr("host");
     address user = makeAddr("user");
+    address feeRecipient = makeAddr("feeRecipient");
 
     uint256 constant REP_REWARD = 100;
     uint256 constant START_OFFSET = 1 hours;
     uint256 constant DURATION = 2 hours;
+    uint256 constant STAKE = 0.01 ether;
 
     event AttendanceRecorded(address indexed user, uint256 indexed eventId);
     event LeaderboardUpdated(uint256 indexed communityId, address indexed newTopEarner, uint256 score);
     event BadgeAwarded(address indexed wallet, uint256 indexed communityId, string reason);
+    event CommunityStaked(uint256 indexed communityId, address indexed host, uint256 amount);
+    event StakeSlashed(uint256 indexed communityId, uint256 amount);
+    event StakeWithdrawn(uint256 indexed communityId, address indexed host, uint256 amount);
 
     function setUp() public {
         nft = new UserProfileNFT();
-        registry = new CommunityRegistry(deployer, address(nft));
+        registry = new CommunityRegistry(deployer, address(nft), feeRecipient);
 
         nft.authorizeWriter(address(registry));
         registry.grantHost(host);
 
         nft.mintProfile(host, "alice_host");
         nft.mintProfile(user, "bob_user");
+
+        deal(host, 10 ether);
     }
 
     function _createCommunity() internal returns (uint256 communityId) {
         vm.prank(host);
-        communityId = registry.createCommunity("Cowork Space A", "Warsaw");
+        communityId = registry.createCommunity{value: STAKE}("Cowork Space A", "Warsaw");
     }
 
     function _createEvent(uint256 communityId, uint256 minRep) internal returns (uint256 eventId, uint256 endTime) {
@@ -288,5 +295,66 @@ contract AttendanceFlowTest is Test {
 
         (uint256 eventId2,) = _createEvent(communityId, 200);
         assertFalse(registry.isEligibleForEvent(user, eventId2));
+    }
+
+    // ── Staking tests ──────────────────────────────────────────────────────
+
+    function test_createCommunityRequiresStake() public {
+        vm.prank(host);
+        vm.expectRevert("Insufficient stake");
+        registry.createCommunity{value: 0.001 ether}("Too Cheap", "Nowhere");
+    }
+
+    function test_createCommunityStoresStake() public {
+        uint256 communityId = _createCommunity();
+        assertEq(registry.communityStake(communityId), STAKE);
+        assertEq(address(registry).balance, STAKE);
+    }
+
+    function test_earlyDeactivationSlashesStake() public {
+        uint256 communityId = _createCommunity();
+        uint256 before = feeRecipient.balance;
+
+        vm.prank(host);
+        registry.deactivateCommunity(communityId);
+
+        assertEq(feeRecipient.balance, before + STAKE);
+        assertEq(registry.communityStake(communityId), 0);
+    }
+
+    function test_withdrawStakeAfterMinPeriod() public {
+        uint256 communityId = _createCommunity();
+        uint256 before = host.balance;
+
+        vm.warp(block.timestamp + 30 days + 1);
+
+        vm.prank(host);
+        registry.withdrawStake(communityId);
+
+        assertEq(host.balance, before + STAKE);
+        assertEq(registry.communityStake(communityId), 0);
+    }
+
+    function test_withdrawStakeTooEarlyReverts() public {
+        uint256 communityId = _createCommunity();
+
+        vm.warp(block.timestamp + 10 days);
+
+        vm.prank(host);
+        vm.expectRevert("Too early");
+        registry.withdrawStake(communityId);
+    }
+
+    function test_noSlashAfterMinPeriod() public {
+        uint256 communityId = _createCommunity();
+
+        vm.warp(block.timestamp + 30 days + 1);
+
+        uint256 feeBefore = feeRecipient.balance;
+        vm.prank(host);
+        registry.deactivateCommunity(communityId);
+
+        assertEq(feeRecipient.balance, feeBefore); // no slash
+        assertEq(registry.communityStake(communityId), STAKE); // still withdrawable
     }
 }

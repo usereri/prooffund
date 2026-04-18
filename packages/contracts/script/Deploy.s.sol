@@ -25,7 +25,8 @@ contract Deploy is Script {
 
         CommunityRegistry registry = new CommunityRegistry(
             deployer,
-            address(userProfileNft)
+            address(userProfileNft),
+            deployer // feeRecipient: slashed stakes go to deployer
         );
         console.log("CommunityRegistry:", address(registry));
 

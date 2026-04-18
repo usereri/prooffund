@@ -48,10 +48,17 @@ contract CommunityRegistry is Ownable {
         uint256 attendeeCount;
     }
 
+    uint256 public constant MIN_COMMUNITY_STAKE = 0.01 ether;
+    uint256 public constant MIN_ACTIVE_PERIOD = 30 days;
+
     address public userProfileNft;
+    address public feeRecipient;
 
     uint256 private _communityIdCounter = 1;
     uint256 private _eventIdCounter = 1;
+
+    mapping(uint256 communityId => uint256) public communityStake;
+    mapping(uint256 communityId => uint256) public communityStakedAt;
 
     mapping(uint256 communityId => Community) public communities;
     mapping(uint256 eventId => EventRecord) public events;
@@ -91,6 +98,17 @@ contract CommunityRegistry is Ownable {
         uint256 indexed communityId,
         address indexed newTopEarner,
         uint256 score
+    );
+    event CommunityStaked(
+        uint256 indexed communityId,
+        address indexed host,
+        uint256 amount
+    );
+    event StakeSlashed(uint256 indexed communityId, uint256 amount);
+    event StakeWithdrawn(
+        uint256 indexed communityId,
+        address indexed host,
+        uint256 amount
     );
 
     modifier onlyHost() {
@@ -140,8 +158,13 @@ contract CommunityRegistry is Ownable {
         );
     }
 
-    constructor(address _owner, address _userProfileNft) Ownable(_owner) {
+    constructor(
+        address _owner,
+        address _userProfileNft,
+        address _feeRecipient
+    ) Ownable(_owner) {
         userProfileNft = _userProfileNft;
+        feeRecipient = _feeRecipient;
     }
 
     function grantHost(address wallet) external onlyOwner {
@@ -157,7 +180,8 @@ contract CommunityRegistry is Ownable {
     function createCommunity(
         string calldata name,
         string calldata location
-    ) external onlyHost returns (uint256 communityId) {
+    ) external payable onlyHost returns (uint256 communityId) {
+        require(msg.value >= MIN_COMMUNITY_STAKE, "Insufficient stake");
         communityId = _communityIdCounter++;
         communities[communityId] = Community({
             id: communityId,
@@ -167,15 +191,39 @@ contract CommunityRegistry is Ownable {
             createdAt: block.timestamp,
             active: true
         });
+        communityStake[communityId] = msg.value;
+        communityStakedAt[communityId] = block.timestamp;
         _hostedCommunities[msg.sender].push(communityId);
         emit CommunityCreated(communityId, name, msg.sender);
+        emit CommunityStaked(communityId, msg.sender, msg.value);
     }
 
     function deactivateCommunity(
         uint256 communityId
     ) external onlyHostOf(communityId) {
         communities[communityId].active = false;
+        uint256 stake = communityStake[communityId];
+        if (stake > 0 && block.timestamp < communityStakedAt[communityId] + MIN_ACTIVE_PERIOD) {
+            communityStake[communityId] = 0;
+            (bool ok,) = feeRecipient.call{value: stake}("");
+            require(ok, "Slash transfer failed");
+            emit StakeSlashed(communityId, stake);
+        }
         emit CommunityDeactivated(communityId);
+    }
+
+    function withdrawStake(uint256 communityId) external {
+        require(communities[communityId].host == msg.sender, "Not host");
+        require(
+            block.timestamp >= communityStakedAt[communityId] + MIN_ACTIVE_PERIOD,
+            "Too early"
+        );
+        uint256 amount = communityStake[communityId];
+        require(amount > 0, "Nothing to withdraw");
+        communityStake[communityId] = 0;
+        (bool ok,) = msg.sender.call{value: amount}("");
+        require(ok, "Withdraw transfer failed");
+        emit StakeWithdrawn(communityId, msg.sender, amount);
     }
 
     function joinCommunity(

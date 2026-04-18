@@ -5,9 +5,23 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IUserProfileNFT {
     function hasProfile(address wallet) external view returns (bool);
-    function getReputation(address wallet, uint256 communityId) external view returns (uint256);
-    function addReputation(address wallet, uint256 communityId, uint256 amount) external;
-    function awardBadge(address wallet, uint256 communityId, string calldata reason) external;
+
+    function getReputation(
+        address wallet,
+        uint256 communityId
+    ) external view returns (uint256);
+
+    function addReputation(
+        address wallet,
+        uint256 communityId,
+        uint256 amount
+    ) external;
+
+    function awardBadge(
+        address wallet,
+        uint256 communityId,
+        string calldata reason
+    ) external;
 }
 
 contract CommunityRegistry is Ownable {
@@ -36,7 +50,6 @@ contract CommunityRegistry is Ownable {
 
     address public userProfileNFT;
 
-    // IDs start at 1; 0 is sentinel for "not found"
     uint256 private _communityIdCounter = 1;
     uint256 private _eventIdCounter = 1;
 
@@ -54,19 +67,31 @@ contract CommunityRegistry is Ownable {
     mapping(uint256 eventId => address[]) private _eventAttendees;
     mapping(uint256 eventId => mapping(address => bool)) public hasAttended;
 
-    // Leaderboard: cached top earner per community
     mapping(uint256 communityId => address) public communityTopEarner;
     mapping(uint256 communityId => uint256) public communityTopScore;
 
-    event CommunityCreated(uint256 indexed communityId, string name, address indexed host);
+    event CommunityCreated(
+        uint256 indexed communityId,
+        string name,
+        address indexed host
+    );
     event CommunityDeactivated(uint256 indexed communityId);
     event HostGranted(address indexed wallet);
     event HostRevoked(address indexed wallet);
     event MemberJoined(uint256 indexed communityId, address indexed member);
-    event EventCreated(uint256 indexed eventId, uint256 indexed communityId, string name, bytes32 qrHash);
+    event EventCreated(
+        uint256 indexed eventId,
+        uint256 indexed communityId,
+        string name,
+        bytes32 qrHash
+    );
     event AttendanceRecorded(address indexed user, uint256 indexed eventId);
     event EventFinalized(uint256 indexed eventId, uint256 attendeeCount);
-    event LeaderboardUpdated(uint256 indexed communityId, address indexed newTopEarner, uint256 score);
+    event LeaderboardUpdated(
+        uint256 indexed communityId,
+        address indexed newTopEarner,
+        uint256 score
+    );
 
     modifier onlyHost() {
         require(isHost[msg.sender] || msg.sender == owner(), "Not a host");
@@ -74,26 +99,34 @@ contract CommunityRegistry is Ownable {
     }
 
     modifier onlyHostOf(uint256 communityId) {
-        require(communities[communityId].host == msg.sender || msg.sender == owner(), "Not community host");
+        require(
+            communities[communityId].host == msg.sender ||
+                msg.sender == owner(),
+            "Not community host"
+        );
         _;
     }
 
     modifier communityExists(uint256 communityId) {
-        require(communityId != 0 && communityId < _communityIdCounter, "Community does not exist");
+        require(
+            communityId != 0 && communityId < _communityIdCounter,
+            "Community does not exist"
+        );
         require(communities[communityId].active, "Community is not active");
         _;
     }
 
     modifier eventExists(uint256 eventId) {
-        require(eventId != 0 && eventId < _eventIdCounter, "Event does not exist");
+        require(
+            eventId != 0 && eventId < _eventIdCounter,
+            "Event does not exist"
+        );
         _;
     }
 
     constructor(address _owner, address _userProfileNFT) Ownable(_owner) {
         userProfileNFT = _userProfileNFT;
     }
-
-    // --- Host management ---
 
     function grantHost(address wallet) external onlyOwner {
         isHost[wallet] = true;
@@ -105,13 +138,10 @@ contract CommunityRegistry is Ownable {
         emit HostRevoked(wallet);
     }
 
-    // --- Community management ---
-
-    function createCommunity(string calldata name, string calldata location)
-        external
-        onlyHost
-        returns (uint256 communityId)
-    {
+    function createCommunity(
+        string calldata name,
+        string calldata location
+    ) external onlyHost returns (uint256 communityId) {
         communityId = _communityIdCounter++;
         communities[communityId] = Community({
             id: communityId,
@@ -125,15 +155,20 @@ contract CommunityRegistry is Ownable {
         emit CommunityCreated(communityId, name, msg.sender);
     }
 
-    function deactivateCommunity(uint256 communityId) external onlyHostOf(communityId) {
+    function deactivateCommunity(
+        uint256 communityId
+    ) external onlyHostOf(communityId) {
         communities[communityId].active = false;
         emit CommunityDeactivated(communityId);
     }
 
-    // --- Membership ---
-
-    function joinCommunity(uint256 communityId) external communityExists(communityId) {
-        require(IUserProfileNFT(userProfileNFT).hasProfile(msg.sender), "Must have a profile first");
+    function joinCommunity(
+        uint256 communityId
+    ) external communityExists(communityId) {
+        require(
+            IUserProfileNFT(userProfileNFT).hasProfile(msg.sender),
+            "Must have a profile first"
+        );
         require(!isMember[communityId][msg.sender], "Already a member");
 
         isMember[communityId][msg.sender] = true;
@@ -143,9 +178,14 @@ contract CommunityRegistry is Ownable {
         emit MemberJoined(communityId, msg.sender);
     }
 
-    // Host can add a member directly (e.g., during onboarding)
-    function addMember(uint256 communityId, address member) external onlyHostOf(communityId) communityExists(communityId) {
-        require(IUserProfileNFT(userProfileNFT).hasProfile(member), "Member must have a profile");
+    function addMember(
+        uint256 communityId,
+        address member
+    ) external onlyHostOf(communityId) communityExists(communityId) {
+        require(
+            IUserProfileNFT(userProfileNFT).hasProfile(member),
+            "Member must have a profile"
+        );
         require(!isMember[communityId][member], "Already a member");
 
         isMember[communityId][member] = true;
@@ -155,8 +195,6 @@ contract CommunityRegistry is Ownable {
         emit MemberJoined(communityId, member);
     }
 
-    // --- Event lifecycle ---
-
     function createEvent(
         uint256 communityId,
         string calldata name,
@@ -165,7 +203,12 @@ contract CommunityRegistry is Ownable {
         bytes32 qrHash,
         uint256 reputationReward,
         uint256 minReputationRequired
-    ) external onlyHostOf(communityId) communityExists(communityId) returns (uint256 eventId) {
+    )
+        external
+        onlyHostOf(communityId)
+        communityExists(communityId)
+        returns (uint256 eventId)
+    {
         require(endTime > startTime, "End must be after start");
 
         eventId = _eventIdCounter++;
@@ -187,16 +230,17 @@ contract CommunityRegistry is Ownable {
         emit EventCreated(eventId, communityId, name, qrHash);
     }
 
-    // Host submits the confirmed attendee list after event ends.
-    // Attendance validation (QR scanning) happens offchain.
-    function finalizeEvent(uint256 eventId, address[] calldata attendees)
-        external
-        eventExists(eventId)
-    {
+    function finalizeEvent(
+        uint256 eventId,
+        address[] calldata attendees
+    ) external eventExists(eventId) {
         EventRecord storage ev = events[eventId];
         require(!ev.finalized, "Already finalized");
         require(block.timestamp > ev.endTime, "Event still active");
-        require(ev.host == msg.sender || msg.sender == owner(), "Not event host");
+        require(
+            ev.host == msg.sender || msg.sender == owner(),
+            "Not event host"
+        );
 
         uint256 communityId = ev.communityId;
         uint256 reputationReward = ev.reputationReward;
@@ -211,8 +255,13 @@ contract CommunityRegistry is Ownable {
             emit AttendanceRecorded(attendee, eventId);
 
             if (reputationReward > 0) {
-                IUserProfileNFT(userProfileNFT).addReputation(attendee, communityId, reputationReward);
-                uint256 newScore = IUserProfileNFT(userProfileNFT).getReputation(attendee, communityId);
+                IUserProfileNFT(userProfileNFT).addReputation(
+                    attendee,
+                    communityId,
+                    reputationReward
+                );
+                uint256 newScore = IUserProfileNFT(userProfileNFT)
+                    .getReputation(attendee, communityId);
                 _checkAndUpdateLeaderboard(attendee, communityId, newScore);
             }
         }
@@ -223,48 +272,75 @@ contract CommunityRegistry is Ownable {
         emit EventFinalized(eventId, attendees.length);
     }
 
-    function _checkAndUpdateLeaderboard(address wallet, uint256 communityId, uint256 newScore) internal {
+    function _checkAndUpdateLeaderboard(
+        address wallet,
+        uint256 communityId,
+        uint256 newScore
+    ) internal {
         if (newScore > communityTopScore[communityId]) {
             communityTopEarner[communityId] = wallet;
             communityTopScore[communityId] = newScore;
             emit LeaderboardUpdated(communityId, wallet, newScore);
-            IUserProfileNFT(userProfileNFT).awardBadge(wallet, communityId, "Top community earner");
+            IUserProfileNFT(userProfileNFT).awardBadge(
+                wallet,
+                communityId,
+                "Top community earner"
+            );
         }
     }
 
-    // --- Views ---
-
-    function isEligibleForEvent(address wallet, uint256 eventId) external view returns (bool) {
+    function isEligibleForEvent(
+        address wallet,
+        uint256 eventId
+    ) external view returns (bool) {
         EventRecord storage ev = events[eventId];
         if (ev.minReputationRequired == 0) return true;
-        return IUserProfileNFT(userProfileNFT).getReputation(wallet, ev.communityId) >= ev.minReputationRequired;
+        return
+            IUserProfileNFT(userProfileNFT).getReputation(
+                wallet,
+                ev.communityId
+            ) >= ev.minReputationRequired;
     }
 
-    function getCommunity(uint256 communityId) external view returns (Community memory) {
+    function getCommunity(
+        uint256 communityId
+    ) external view returns (Community memory) {
         return communities[communityId];
     }
 
-    function getEvent(uint256 eventId) external view returns (EventRecord memory) {
+    function getEvent(
+        uint256 eventId
+    ) external view returns (EventRecord memory) {
         return events[eventId];
     }
 
-    function getEventAttendees(uint256 eventId) external view returns (address[] memory) {
+    function getEventAttendees(
+        uint256 eventId
+    ) external view returns (address[] memory) {
         return _eventAttendees[eventId];
     }
 
-    function getCommunityEvents(uint256 communityId) external view returns (uint256[] memory) {
+    function getCommunityEvents(
+        uint256 communityId
+    ) external view returns (uint256[] memory) {
         return _communityEvents[communityId];
     }
 
-    function getCommunityMembers(uint256 communityId) external view returns (address[] memory) {
+    function getCommunityMembers(
+        uint256 communityId
+    ) external view returns (address[] memory) {
         return _communityMembers[communityId];
     }
 
-    function getMemberCommunities(address member) external view returns (uint256[] memory) {
+    function getMemberCommunities(
+        address member
+    ) external view returns (uint256[] memory) {
         return _memberCommunities[member];
     }
 
-    function getHostedCommunities(address host) external view returns (uint256[] memory) {
+    function getHostedCommunities(
+        address host
+    ) external view returns (uint256[] memory) {
         return _hostedCommunities[host];
     }
 

@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract UserProfileNFT is ERC721URIStorage, Ownable {
-    // Start at 1 so walletToTokenId[x] == 0 reliably means "no profile"
     uint256 private _tokenIdCounter = 1;
 
     struct Profile {
@@ -23,29 +22,41 @@ contract UserProfileNFT is ERC721URIStorage, Ownable {
     mapping(uint256 tokenId => Profile) public profiles;
     mapping(address wallet => uint256 tokenId) public walletToTokenId;
 
-    // Per-community reputation: wallet => communityId => score
-    mapping(address wallet => mapping(uint256 communityId => uint256)) public communityReputation;
+    mapping(address wallet => mapping(uint256 communityId => uint256))
+        public communityReputation;
 
-    // Badges per wallet (append-only; frontend filters by communityId)
     mapping(address wallet => Badge[]) private _badges;
 
-    // Authorized writers (CommunityRegistry) can update reputation and award badges
     mapping(address => bool) public authorizedWriters;
 
-    event ProfileMinted(address indexed wallet, uint256 indexed tokenId, string username);
-    event ReputationAdded(address indexed wallet, uint256 indexed communityId, uint256 amount, uint256 newTotal);
-    event BadgeAwarded(address indexed wallet, uint256 indexed communityId, string reason);
+    event ProfileMinted(
+        address indexed wallet,
+        uint256 indexed tokenId,
+        string username
+    );
+    event ReputationAdded(
+        address indexed wallet,
+        uint256 indexed communityId,
+        uint256 amount,
+        uint256 newTotal
+    );
+    event BadgeAwarded(
+        address indexed wallet,
+        uint256 indexed communityId,
+        string reason
+    );
     event WriterAuthorized(address indexed writer);
     event WriterRevoked(address indexed writer);
 
     modifier onlyAuthorizedWriter() {
-        require(authorizedWriters[msg.sender] || msg.sender == owner(), "Not authorized writer");
+        require(
+            authorizedWriters[msg.sender] || msg.sender == owner(),
+            "Not authorized writer"
+        );
         _;
     }
 
     constructor() ERC721("CoworkID", "CWID") Ownable(msg.sender) {}
-
-    // --- Authorization ---
 
     function authorizeWriter(address writer) external onlyOwner {
         authorizedWriters[writer] = true;
@@ -57,16 +68,20 @@ contract UserProfileNFT is ERC721URIStorage, Ownable {
         emit WriterRevoked(writer);
     }
 
-    // --- Identity ---
-
-    function mintProfile(address to, string calldata username) external onlyOwner returns (uint256 tokenId) {
+    function mintProfile(
+        address to,
+        string calldata username
+    ) external onlyOwner returns (uint256 tokenId) {
         require(!hasProfile(to), "Profile already exists");
 
         tokenId = _tokenIdCounter++;
         _safeMint(to, tokenId);
         walletToTokenId[to] = tokenId;
 
-        profiles[tokenId] = Profile({username: username, memberSince: block.timestamp});
+        profiles[tokenId] = Profile({
+            username: username,
+            memberSince: block.timestamp
+        });
 
         emit ProfileMinted(to, tokenId, username);
     }
@@ -75,11 +90,15 @@ contract UserProfileNFT is ERC721URIStorage, Ownable {
         return walletToTokenId[wallet] != 0;
     }
 
-    function getProfile(uint256 tokenId) external view returns (Profile memory) {
+    function getProfile(
+        uint256 tokenId
+    ) external view returns (Profile memory) {
         return profiles[tokenId];
     }
 
-    function getTokenIdByWallet(address wallet) external view returns (uint256) {
+    function getTokenIdByWallet(
+        address wallet
+    ) external view returns (uint256) {
         return walletToTokenId[wallet];
     }
 
@@ -87,21 +106,39 @@ contract UserProfileNFT is ERC721URIStorage, Ownable {
         return _tokenIdCounter - 1;
     }
 
-    // --- Reputation (written by CommunityRegistry only) ---
-
-    function addReputation(address wallet, uint256 communityId, uint256 amount) external onlyAuthorizedWriter {
+    function addReputation(
+        address wallet,
+        uint256 communityId,
+        uint256 amount
+    ) external onlyAuthorizedWriter {
         communityReputation[wallet][communityId] += amount;
-        emit ReputationAdded(wallet, communityId, amount, communityReputation[wallet][communityId]);
+        emit ReputationAdded(
+            wallet,
+            communityId,
+            amount,
+            communityReputation[wallet][communityId]
+        );
     }
 
-    function getReputation(address wallet, uint256 communityId) external view returns (uint256) {
+    function getReputation(
+        address wallet,
+        uint256 communityId
+    ) external view returns (uint256) {
         return communityReputation[wallet][communityId];
     }
 
-    // --- Badges (written by CommunityRegistry only) ---
-
-    function awardBadge(address wallet, uint256 communityId, string calldata reason) external onlyAuthorizedWriter {
-        _badges[wallet].push(Badge({communityId: communityId, awardedAt: block.timestamp, reason: reason}));
+    function awardBadge(
+        address wallet,
+        uint256 communityId,
+        string calldata reason
+    ) external onlyAuthorizedWriter {
+        _badges[wallet].push(
+            Badge({
+                communityId: communityId,
+                awardedAt: block.timestamp,
+                reason: reason
+            })
+        );
         emit BadgeAwarded(wallet, communityId, reason);
     }
 

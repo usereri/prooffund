@@ -15,9 +15,6 @@ interface ICommunityRegistry {
     ) external returns (uint256 eventId);
 }
 
-// Required env vars:
-//   PRIVATE_KEY, REGISTRY_ADDRESS, COMMUNITY_ID, EVENT_NAME,
-//   EVENT_START, EVENT_END, EVENT_QR_HASH, EVENT_REP_REWARD, EVENT_MIN_REP
 contract DeployEvent is Script {
     /*
     * @notice This script deploys a new event to an existing CommunityRegistry contract.

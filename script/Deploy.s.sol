@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Script.sol";
-import "./HelperConfig.s.sol";
-import "../src/identity/UserProfileNFT.sol";
-import "../src/registry/CommunityRegistry.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {HelperConfig} from "./HelperConfig.s.sol";
+import {UserProfileNFT} from "../src/identity/UserProfileNFT.sol";
+import {CommunityRegistry} from "../src/registry/CommunityRegistry.sol";
 
 contract Deploy is Script {
     function run() external {
@@ -20,16 +20,16 @@ contract Deploy is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        UserProfileNFT userProfileNFT = new UserProfileNFT();
-        console.log("UserProfileNFT:", address(userProfileNFT));
+        UserProfileNFT userProfileNft = new UserProfileNFT();
+        console.log("UserProfileNft:", address(userProfileNft));
 
         CommunityRegistry registry = new CommunityRegistry(
             deployer,
-            address(userProfileNFT)
+            address(userProfileNft)
         );
         console.log("CommunityRegistry:", address(registry));
 
-        userProfileNFT.authorizeWriter(address(registry));
+        userProfileNft.authorizeWriter(address(registry));
 
         registry.grantHost(deployer);
 
@@ -41,8 +41,8 @@ contract Deploy is Script {
             string.concat(
                 '{"chainId":',
                 vm.toString(block.chainid),
-                ',"UserProfileNFT":"',
-                vm.toString(address(userProfileNFT)),
+                ',"UserProfileNft":"',
+                vm.toString(address(userProfileNft)),
                 '","CommunityRegistry":"',
                 vm.toString(address(registry)),
                 '"}'

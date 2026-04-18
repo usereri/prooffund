@@ -41,15 +41,13 @@ contract HelperConfig is Script, CodeConstants {
 
     function getSepoliaConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            deployerPrivateKey: vm.envUint("PRIVATE_KEY"),
-            deployer: 0xBbCbB8362Dbd3a3Fcbc7AE9c0D808c6c214Ed3E2
+            deployerPrivateKey: vm.envUint("PRIVATE_KEY"), deployer: 0xBbCbB8362Dbd3a3Fcbc7AE9c0D808c6c214Ed3E2
         });
     }
 
     function getArbSepoliaConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            deployerPrivateKey: vm.envUint("PRIVATE_KEY"),
-            deployer: 0xBbCbB8362Dbd3a3Fcbc7AE9c0D808c6c214Ed3E2
+            deployerPrivateKey: vm.envUint("PRIVATE_KEY"), deployer: 0xBbCbB8362Dbd3a3Fcbc7AE9c0D808c6c214Ed3E2
         });
     }
 
@@ -58,8 +56,7 @@ contract HelperConfig is Script, CodeConstants {
             return localNetworkConfig;
         }
         localNetworkConfig = NetworkConfig({
-            deployerPrivateKey: vm.envUint("ANVIL_PRIVATE_KEY"),
-            deployer: vm.addr(vm.envUint("ANVIL_PRIVATE_KEY"))
+            deployerPrivateKey: vm.envUint("ANVIL_PRIVATE_KEY"), deployer: vm.addr(vm.envUint("ANVIL_PRIVATE_KEY"))
         });
         return localNetworkConfig;
     }

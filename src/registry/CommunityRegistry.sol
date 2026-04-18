@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IUserProfileNFT {
     function hasProfile(address wallet) external view returns (bool);
@@ -48,7 +48,7 @@ contract CommunityRegistry is Ownable {
         uint256 attendeeCount;
     }
 
-    address public userProfileNFT;
+    address public userProfileNft;
 
     uint256 private _communityIdCounter = 1;
     uint256 private _eventIdCounter = 1;
@@ -94,38 +94,54 @@ contract CommunityRegistry is Ownable {
     );
 
     modifier onlyHost() {
-        require(isHost[msg.sender] || msg.sender == owner(), "Not a host");
+        _onlyHost();
         _;
     }
 
+    function _onlyHost() internal view {
+        require(isHost[msg.sender] || msg.sender == owner(), "Not a host");
+    }
+
     modifier onlyHostOf(uint256 communityId) {
+        _onlyHostOf(communityId);
+        _;
+    }
+
+    function _onlyHostOf(uint256 communityId) internal view {
         require(
             communities[communityId].host == msg.sender ||
                 msg.sender == owner(),
             "Not community host"
         );
-        _;
     }
 
     modifier communityExists(uint256 communityId) {
+        _communityExists(communityId);
+        _;
+    }
+
+    function _communityExists(uint256 communityId) internal view {
         require(
             communityId != 0 && communityId < _communityIdCounter,
             "Community does not exist"
         );
         require(communities[communityId].active, "Community is not active");
-        _;
     }
 
     modifier eventExists(uint256 eventId) {
+        _eventExists(eventId);
+        _;
+    }
+
+    function _eventExists(uint256 eventId) internal view {
         require(
             eventId != 0 && eventId < _eventIdCounter,
             "Event does not exist"
         );
-        _;
     }
 
-    constructor(address _owner, address _userProfileNFT) Ownable(_owner) {
-        userProfileNFT = _userProfileNFT;
+    constructor(address _owner, address _userProfileNft) Ownable(_owner) {
+        userProfileNft = _userProfileNft;
     }
 
     function grantHost(address wallet) external onlyOwner {
@@ -166,7 +182,7 @@ contract CommunityRegistry is Ownable {
         uint256 communityId
     ) external communityExists(communityId) {
         require(
-            IUserProfileNFT(userProfileNFT).hasProfile(msg.sender),
+            IUserProfileNFT(userProfileNft).hasProfile(msg.sender),
             "Must have a profile first"
         );
         require(!isMember[communityId][msg.sender], "Already a member");
@@ -183,7 +199,7 @@ contract CommunityRegistry is Ownable {
         address member
     ) external onlyHostOf(communityId) communityExists(communityId) {
         require(
-            IUserProfileNFT(userProfileNFT).hasProfile(member),
+            IUserProfileNFT(userProfileNft).hasProfile(member),
             "Member must have a profile"
         );
         require(!isMember[communityId][member], "Already a member");
@@ -255,12 +271,12 @@ contract CommunityRegistry is Ownable {
             emit AttendanceRecorded(attendee, eventId);
 
             if (reputationReward > 0) {
-                IUserProfileNFT(userProfileNFT).addReputation(
+                IUserProfileNFT(userProfileNft).addReputation(
                     attendee,
                     communityId,
                     reputationReward
                 );
-                uint256 newScore = IUserProfileNFT(userProfileNFT)
+                uint256 newScore = IUserProfileNFT(userProfileNft)
                     .getReputation(attendee, communityId);
                 _checkAndUpdateLeaderboard(attendee, communityId, newScore);
             }
@@ -281,7 +297,7 @@ contract CommunityRegistry is Ownable {
             communityTopEarner[communityId] = wallet;
             communityTopScore[communityId] = newScore;
             emit LeaderboardUpdated(communityId, wallet, newScore);
-            IUserProfileNFT(userProfileNFT).awardBadge(
+            IUserProfileNFT(userProfileNft).awardBadge(
                 wallet,
                 communityId,
                 "Top community earner"
@@ -296,7 +312,7 @@ contract CommunityRegistry is Ownable {
         EventRecord storage ev = events[eventId];
         if (ev.minReputationRequired == 0) return true;
         return
-            IUserProfileNFT(userProfileNFT).getReputation(
+            IUserProfileNFT(userProfileNft).getReputation(
                 wallet,
                 ev.communityId
             ) >= ev.minReputationRequired;

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
-import "../src/identity/UserProfileNFT.sol";
-import "../src/registry/CommunityRegistry.sol";
+import {Test} from "forge-std/Test.sol";
+import {UserProfileNFT} from "../src/identity/UserProfileNFT.sol";
+import {CommunityRegistry} from "../src/registry/CommunityRegistry.sol";
 
 contract AttendanceFlowTest is Test {
     UserProfileNFT nft;
@@ -18,16 +18,8 @@ contract AttendanceFlowTest is Test {
     uint256 constant DURATION = 2 hours;
 
     event AttendanceRecorded(address indexed user, uint256 indexed eventId);
-    event LeaderboardUpdated(
-        uint256 indexed communityId,
-        address indexed newTopEarner,
-        uint256 score
-    );
-    event BadgeAwarded(
-        address indexed wallet,
-        uint256 indexed communityId,
-        string reason
-    );
+    event LeaderboardUpdated(uint256 indexed communityId, address indexed newTopEarner, uint256 score);
+    event BadgeAwarded(address indexed wallet, uint256 indexed communityId, string reason);
 
     function setUp() public {
         nft = new UserProfileNFT();
@@ -45,26 +37,13 @@ contract AttendanceFlowTest is Test {
         communityId = registry.createCommunity("Cowork Space A", "Warsaw");
     }
 
-    function _createEvent(
-        uint256 communityId,
-        uint256 minRep
-    ) internal returns (uint256 eventId, uint256 endTime) {
+    function _createEvent(uint256 communityId, uint256 minRep) internal returns (uint256 eventId, uint256 endTime) {
         uint256 startTime = block.timestamp + START_OFFSET;
         endTime = startTime + DURATION;
-        bytes32 qrHash = keccak256(
-            abi.encodePacked(communityId, block.timestamp)
-        );
+        bytes32 qrHash = keccak256(abi.encodePacked(communityId, block.timestamp));
 
         vm.prank(host);
-        eventId = registry.createEvent(
-            communityId,
-            "April Meetup",
-            startTime,
-            endTime,
-            qrHash,
-            REP_REWARD,
-            minRep
-        );
+        eventId = registry.createEvent(communityId, "April Meetup", startTime, endTime, qrHash, REP_REWARD, minRep);
     }
 
     function test_profilesMinted() public {
@@ -74,14 +53,10 @@ contract AttendanceFlowTest is Test {
 
         assertEq(nft.totalSupply(), 2);
 
-        UserProfileNFT.Profile memory hostProfile = nft.getProfile(
-            nft.getTokenIdByWallet(host)
-        );
+        UserProfileNFT.Profile memory hostProfile = nft.getProfile(nft.getTokenIdByWallet(host));
         assertEq(hostProfile.username, "alice_host");
 
-        UserProfileNFT.Profile memory userProfile = nft.getProfile(
-            nft.getTokenIdByWallet(user)
-        );
+        UserProfileNFT.Profile memory userProfile = nft.getProfile(nft.getTokenIdByWallet(user));
         assertEq(userProfile.username, "bob_user");
     }
 
@@ -93,9 +68,7 @@ contract AttendanceFlowTest is Test {
     function test_hostCreatesCommunity() public {
         uint256 communityId = _createCommunity();
 
-        CommunityRegistry.Community memory c = registry.getCommunity(
-            communityId
-        );
+        CommunityRegistry.Community memory c = registry.getCommunity(communityId);
         assertEq(c.name, "Cowork Space A");
         assertEq(c.location, "Warsaw");
         assertEq(c.host, host);
@@ -145,7 +118,7 @@ contract AttendanceFlowTest is Test {
 
     function test_hostCreatesEvent() public {
         uint256 communityId = _createCommunity();
-        (uint256 eventId, ) = _createEvent(communityId, 0);
+        (uint256 eventId,) = _createEvent(communityId, 0);
 
         CommunityRegistry.EventRecord memory ev = registry.getEvent(eventId);
         assertEq(ev.communityId, communityId);
@@ -155,16 +128,14 @@ contract AttendanceFlowTest is Test {
         assertFalse(ev.finalized);
         assertEq(registry.getEventCount(), 1);
 
-        uint256[] memory communityEvents = registry.getCommunityEvents(
-            communityId
-        );
+        uint256[] memory communityEvents = registry.getCommunityEvents(communityId);
         assertEq(communityEvents.length, 1);
         assertEq(communityEvents[0], eventId);
     }
 
     function test_eventEligibility_openEvent() public {
         uint256 communityId = _createCommunity();
-        (uint256 eventId, ) = _createEvent(communityId, 0);
+        (uint256 eventId,) = _createEvent(communityId, 0);
 
         assertTrue(registry.isEligibleForEvent(user, eventId));
         assertTrue(registry.isEligibleForEvent(makeAddr("stranger"), eventId));
@@ -172,7 +143,7 @@ contract AttendanceFlowTest is Test {
 
     function test_eventEligibility_gatedEvent() public {
         uint256 communityId = _createCommunity();
-        (uint256 eventId, ) = _createEvent(communityId, 200); // requires 200 rep
+        (uint256 eventId,) = _createEvent(communityId, 200); // requires 200 rep
 
         assertFalse(registry.isEligibleForEvent(user, eventId)); // user has 0 rep
     }
@@ -265,7 +236,7 @@ contract AttendanceFlowTest is Test {
 
     function test_cannotFinalizeBeforeEventEnds() public {
         uint256 communityId = _createCommunity();
-        (uint256 eventId, ) = _createEvent(communityId, 0);
+        (uint256 eventId,) = _createEvent(communityId, 0);
 
         address[] memory attendees = new address[](1);
         attendees[0] = user;
@@ -315,7 +286,7 @@ contract AttendanceFlowTest is Test {
         vm.prank(host);
         registry.finalizeEvent(eventId1, first);
 
-        (uint256 eventId2, ) = _createEvent(communityId, 200);
+        (uint256 eventId2,) = _createEvent(communityId, 200);
         assertFalse(registry.isEligibleForEvent(user, eventId2));
     }
 }

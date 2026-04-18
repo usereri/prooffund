@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 interface ICommunityRegistry {
     function createEvent(
@@ -33,15 +33,8 @@ contract DeployEvent is Script {
         uint256 minRep = vm.envUint("EVENT_MIN_REP");
 
         vm.startBroadcast(hostPrivateKey);
-        uint256 eventId = ICommunityRegistry(registryAddr).createEvent(
-            communityId,
-            eventName,
-            startTime,
-            endTime,
-            qrHash,
-            repReward,
-            minRep
-        );
+        uint256 eventId = ICommunityRegistry(registryAddr)
+            .createEvent(communityId, eventName, startTime, endTime, qrHash, repReward, minRep);
         vm.stopBroadcast();
 
         console.log("Event created with ID:", eventId);

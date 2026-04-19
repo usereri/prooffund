@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import ArkaLogo from '@/components/ArkaLogo';
 import { useAuth } from '@/lib/auth-context';
-import { communities, meetups, memberships, currentUserId, formatDate } from '@/lib/mock-data';
+import { communities, meetups, memberships, currentUserId, formatDate, getCommunityLeaderboard, users, getUserById } from '@/lib/mock-data';
 import { CommunityIcon, MeetupIcon, TrophyIcon, QrIcon } from '@/components/Icons';
 import { createCommunityOnChain } from '@/lib/arka-pro';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -236,11 +237,19 @@ function WebDashboard({
 }) {
   const { isProHost, becomeHost, primaryWallet } = useAuth();
   const [showProModal, setShowProModal] = useState(false);
+  const [expandedStat, setExpandedStat] = useState<string | null>(null);
   const [showCommunityForm, setShowCommunityForm] = useState(false);
   const [communityName, setCommunityName] = useState('');
   const [communityDescription, setCommunityDescription] = useState('');
   const [communityLocation, setCommunityLocation] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [eventFormType, setEventFormType] = useState<'pro' | 'quick'>('pro');
+  const [eventName, setEventName] = useState('');
+  const [eventDateTime, setEventDateTime] = useState('');
+  const [eventLocation, setEventLocation] = useState('');
+  const [createdEventId, setCreatedEventId] = useState<string | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   const handleSubscribe = async () => {
     try {
@@ -289,6 +298,41 @@ function WebDashboard({
     }
   };
 
+  const handleCreateEvent = async () => {
+    if (!eventName.trim() || !eventDateTime || !eventLocation.trim()) {
+      alert('All fields are required');
+      return;
+    }
+    try {
+      setIsCreating(true);
+      const res = await fetch('http://localhost:3053/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostAddress: user.address,
+          communityId: user.hostedCommunityId || null,
+          name: eventName,
+          datetime: eventDateTime,
+          location: eventLocation,
+          ephemeral: eventFormType === 'quick',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCreatedEventId(data.event.id);
+        setEventName('');
+        setEventDateTime('');
+        setEventLocation('');
+      } else {
+        alert(data.error || 'Failed to create event');
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to create event');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const joinedCommunities = communities.filter((c) =>
     memberships.some((m) => m.userId === currentUserId && m.communityId === c.id)
   );
@@ -314,28 +358,91 @@ function WebDashboard({
 
       <main className="mx-auto max-w-2xl px-5 py-8">
         {/* Welcome */}
-        <h1 className="text-2xl font-bold text-arka-text">
-          Welcome back, {user.username.replace('@', '')} 👋
-        </h1>
-        <p className="mt-1 text-sm text-black/40">
-          {user.address && user.address !== '0x0000...0000' ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : user.email}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-arka-text">
+              Welcome back, {user.username.replace('@', '')} 👋
+            </h1>
+            <p className="mt-1 text-sm text-black/40">
+              {user.address && user.address !== '0x0000...0000' ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : user.email}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowQRModal(true)}
+            className="rounded-full bg-arka-cyan/10 p-2 transition hover:bg-arka-cyan/20"
+            title="Show my QR code"
+          >
+            <QrIcon className="h-5 w-5 text-arka-cyan" />
+          </button>
+        </div>
 
         {/* Stats */}
         <div className="mt-6 grid grid-cols-3 gap-3">
-          <div className="rounded-xl bg-white p-4 text-center shadow-sm ring-1 ring-black/5">
+          <button onClick={() => setExpandedStat(expandedStat === 'communities' ? null : 'communities')} className={`rounded-xl bg-white p-4 text-center shadow-sm ring-1 transition ${expandedStat === 'communities' ? 'ring-arka-pink/30' : 'ring-black/5'}`}>
             <p className="text-2xl font-black text-arka-pink">{joinedCommunities.length}</p>
             <p className="text-[11px] text-black/40">Communities</p>
-          </div>
-          <div className="rounded-xl bg-white p-4 text-center shadow-sm ring-1 ring-black/5">
+          </button>
+          <button onClick={() => setExpandedStat(expandedStat === 'events' ? null : 'events')} className={`rounded-xl bg-white p-4 text-center shadow-sm ring-1 transition ${expandedStat === 'events' ? 'ring-arka-cyan/30' : 'ring-black/5'}`}>
             <p className="text-2xl font-black text-arka-cyan">{meetups.length}</p>
             <p className="text-[11px] text-black/40">Events</p>
-          </div>
-          <div className="rounded-xl bg-white p-4 text-center shadow-sm ring-1 ring-black/5">
+          </button>
+          <button onClick={() => setExpandedStat(expandedStat === 'reputation' ? null : 'reputation')} className={`rounded-xl bg-white p-4 text-center shadow-sm ring-1 transition ${expandedStat === 'reputation' ? 'ring-arka-green/30' : 'ring-black/5'}`}>
             <p className="text-2xl font-black text-arka-green">2,450</p>
             <p className="text-[11px] text-black/40">Reputation</p>
-          </div>
+          </button>
         </div>
+
+        {/* Expanded stat details */}
+        {expandedStat === 'events' && (
+          <div className="mt-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+            <p className="text-xs font-bold uppercase tracking-wider text-black/30 mb-2">Events Attended</p>
+            <div className="space-y-2">
+              {[
+                { name: 'ETH Budapest Kickoff', date: 'Mar 15', rep: '+80', interactions: 4 },
+                { name: 'Arbitrum Builders Call', date: 'Mar 22', rep: '+120', interactions: 6 },
+                { name: 'Web3 Nomads Lisbon', date: 'Apr 2', rep: '+60', interactions: 2 },
+                { name: 'DeFi Deep Dive', date: 'Apr 10', rep: '+90', interactions: 5 },
+                { name: 'ETH Budapest Demo Day', date: 'Apr 16', rep: '+100', interactions: 7 },
+              ].map((e) => (
+                <div key={e.name} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                  <div>
+                    <p className="text-xs font-semibold text-arka-text">{e.name}</p>
+                    <p className="text-[10px] text-black/40">{e.date} · {e.interactions} interactions</p>
+                  </div>
+                  <span className="text-xs font-bold text-arka-green">{e.rep}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {expandedStat === 'reputation' && (
+          <div className="mt-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+            <p className="text-xs font-bold uppercase tracking-wider text-black/30 mb-2">Reputation Breakdown</p>
+            <div className="space-y-2">
+              {[
+                { source: 'Event attendance', points: 450, icon: '📅' },
+                { source: 'QR check-ins', points: 380, icon: '✅' },
+                { source: 'Mingle matches', points: 520, icon: '🤝' },
+                { source: 'Verifications', points: 600, icon: '🔐' },
+                { source: 'Poll participation', points: 200, icon: '📊' },
+                { source: 'Community engagement', points: 300, icon: '💬' },
+              ].map((r) => (
+                <div key={r.source} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{r.icon}</span>
+                    <p className="text-xs text-arka-text">{r.source}</p>
+                  </div>
+                  <span className="text-xs font-bold text-arka-green">+{r.points}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between border-t border-black/5 pt-2 mt-1 px-3">
+                <p className="text-xs font-bold text-arka-text">Total</p>
+                <p className="text-sm font-black text-arka-green">2,450</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Go Pro Card */}
         {!isProHost && (
@@ -370,6 +477,34 @@ function WebDashboard({
           </section>
         )}
 
+        {/* Quick Event Creation for Free Users */}
+        {!isProHost && (
+          <section className="mt-6 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 p-6 text-white shadow-lg">
+            <h3 className="text-lg font-bold">⚡ Create Quick Event</h3>
+            <p className="mt-1 text-sm opacity-90">Free users can create ephemeral events</p>
+            <button
+              onClick={() => { setEventFormType('quick'); setShowEventForm(true); }}
+              className="mt-3 rounded-full bg-white px-5 py-2 text-sm font-bold text-orange-600 transition hover:bg-white/90"
+            >
+              Create Quick Event
+            </button>
+          </section>
+        )}
+
+        {/* Pro Host: Create Event */}
+        {isProHost && user.hostedCommunityId && (
+          <section className="mt-6 rounded-2xl bg-gradient-to-br from-arka-pink to-arka-cyan p-6 text-white shadow-lg">
+            <h3 className="text-lg font-bold">🎉 Create Event</h3>
+            <p className="mt-1 text-sm opacity-90">Host an event in your community</p>
+            <button
+              onClick={() => { setEventFormType('pro'); setShowEventForm(true); }}
+              className="mt-3 rounded-full bg-white px-5 py-2 text-sm font-bold text-arka-pink transition hover:bg-white/90"
+            >
+              Create Event
+            </button>
+          </section>
+        )}
+
         {/* Communities */}
         <section className="mt-8">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-black/30">Your Communities</h2>
@@ -377,6 +512,7 @@ function WebDashboard({
             {(joinedCommunities.length > 0 ? joinedCommunities : communities.slice(0, 3)).map((c) => {
               const isExpanded = expandedCommunity === c.id;
               const communityMeetups = meetups.filter((m) => m.communityId === c.id);
+              const leaderboard = getCommunityLeaderboard(c.id);
               return (
                 <div key={c.id} className="rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-all">
                   <button
@@ -402,6 +538,30 @@ function WebDashboard({
                           <span className="text-black/40">Fee: <span className="font-semibold text-arka-text">{c.membershipFee}</span></span>
                         )}
                       </div>
+                      {/* Leaderboard */}
+                      {leaderboard.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-black/25 mb-1">Leaderboard</p>
+                          <div className="rounded-xl bg-gray-50 p-2">
+                            {leaderboard.slice(0, 5).map((entry) => (
+                              <div
+                                key={entry.user.id}
+                                className={`flex items-center justify-between rounded-lg px-2 py-1.5 text-xs ${
+                                  entry.user.id === currentUserId ? 'bg-arka-pink/10 font-bold text-arka-pink' : 'text-black/60'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-black ${entry.rank === 1 ? 'text-yellow-500' : entry.rank === 2 ? 'text-gray-400' : entry.rank === 3 ? 'text-amber-600' : 'text-black/25'}`}>#{entry.rank}</span>
+                                  <span>{entry.user.id === currentUserId ? 'You' : entry.user.username}</span>
+                                </div>
+                                <span className="font-semibold">{entry.rep}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Events */}
                       {communityMeetups.length > 0 ? (
                         <div className="space-y-2">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-black/25">Events</p>
@@ -532,6 +692,151 @@ function WebDashboard({
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {showQRModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowQRModal(false)}>
+          <div className="mx-5 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-arka-text">My QR Code</h3>
+            <p className="mt-1 text-xs text-black/40">Scan to verify or check in</p>
+            <div className="mt-4 flex justify-center">
+              <QRCodeSVG
+                value={JSON.stringify({
+                  type: 'arka',
+                  action: 'host-checkin',
+                  hostAddress: user.address,
+                  userId: user.address,
+                })}
+                size={240}
+                level="H"
+              />
+            </div>
+            <p className="mt-3 text-center text-xs text-black/30">{user.address}</p>
+            <button
+              onClick={() => setShowQRModal(false)}
+              className="mt-4 w-full rounded-xl bg-black/5 py-3 text-sm font-medium text-black/60 transition hover:bg-black/10"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Create event form */}
+      {showEventForm && !createdEventId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowEventForm(false)}>
+          <div className="mx-5 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-arka-text">
+              {eventFormType === 'quick' ? '⚡ Create Quick Event' : '🎉 Create Event'}
+            </h3>
+            {eventFormType === 'quick' && (
+              <div className="mt-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                ⚡ Quick events are ephemeral — data won&apos;t be saved after the event ends. Go Pro to keep your data!
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-black/60">Event Name *</label>
+                <input
+                  type="text"
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="e.g. ETH Budapest Meetup"
+                  className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm focus:border-arka-pink focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-black/60">Date & Time *</label>
+                <input
+                  type="datetime-local"
+                  value={eventDateTime}
+                  onChange={(e) => setEventDateTime(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm focus:border-arka-pink focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-black/60">Location *</label>
+                <input
+                  type="text"
+                  value={eventLocation}
+                  onChange={(e) => setEventLocation(e.target.value)}
+                  placeholder="e.g. Budapest, Hungary"
+                  className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm focus:border-arka-pink focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                onClick={handleCreateEvent}
+                disabled={isCreating || !eventName.trim() || !eventDateTime || !eventLocation.trim()}
+                className="rounded-xl bg-arka-pink py-3 text-sm font-bold text-white transition hover:bg-arka-pink/90 disabled:opacity-50"
+              >
+                {isCreating ? 'Creating...' : 'Create Event'}
+              </button>
+              <button
+                onClick={() => setShowEventForm(false)}
+                className="rounded-xl py-3 text-sm font-medium text-black/40 transition hover:bg-black/5"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Event created - show shareable links */}
+      {createdEventId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setCreatedEventId(null)}>
+          <div className="mx-5 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-arka-text">✨ Event Created!</h3>
+            <p className="mt-2 text-sm text-black/50">
+              Share these links to invite attendees:
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-black/40 mb-1">Telegram Deep Link</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-xs text-arka-text break-all">
+                    https://t.me/arka_telegram_bot?startapp=event_{createdEventId}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://t.me/arka_telegram_bot?startapp=event_${createdEventId}`);
+                      alert('Copied!');
+                    }}
+                    className="rounded-lg bg-arka-cyan px-3 py-2 text-xs font-semibold text-white"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-black/40 mb-1">Direct Link</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-xs text-arka-text break-all">
+                    https://arka.social/miniapp/event/{createdEventId}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://arka.social/miniapp/event/${createdEventId}`);
+                      alert('Copied!');
+                    }}
+                    className="rounded-lg bg-arka-cyan px-3 py-2 text-xs font-semibold text-white"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => { setCreatedEventId(null); setShowEventForm(false); }}
+              className="mt-5 w-full rounded-xl bg-arka-pink py-3 text-sm font-bold text-white transition hover:bg-arka-pink/90"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}

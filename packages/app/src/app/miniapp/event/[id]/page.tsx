@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import ArkaLogo from '@/components/ArkaLogo';
 import EventChat from '@/components/EventChat';
 import EventPoll from '@/components/EventPoll';
+import { useAuth } from '@/lib/auth-context';
 
 const API_URL = 'https://arka-api.claws.page';
 
@@ -41,6 +42,8 @@ export default function EventPage() {
   const [userId, setUserId] = useState<string>('');
   const [username, setUsername] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'event' | 'chat' | 'poll'>('event');
+  const [hasAutoJoined, setHasAutoJoined] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -51,10 +54,16 @@ export default function EventPage() {
       setUserId(tg.initDataUnsafe.user.id.toString());
       setUsername(tg.initDataUnsafe.user.first_name || 'User');
     } else {
+      // Not in Telegram, but might have Dynamic wallet
       setIsTelegram(false);
-      router.replace('/');
+      if (user?.address) {
+        setUserId(user.address);
+        setUsername(user.username || 'User');
+      } else {
+        router.replace('/');
+      }
     }
-  }, [router]);
+  }, [router, user]);
 
   useEffect(() => {
     if (!userId || !eventId) return;
@@ -67,7 +76,26 @@ export default function EventPage() {
         ]);
 
         if (eventRes.ok) setEvent(await eventRes.json());
-        if (stateRes.ok) setState(await stateRes.json());
+        if (stateRes.ok) {
+          const stateData = await stateRes.json();
+          setState(stateData);
+          
+          // Auto-join if not already in the event
+          if (!hasAutoJoined && !stateData.checkedIn && !stateData.joined) {
+            setHasAutoJoined(true);
+            try {
+              const userKey = isTelegram ? { userId } : { userAddress: userId };
+              await fetch(`${API_URL}/events/${eventId}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userKey),
+              });
+              console.log('Auto-joined event');
+            } catch (err) {
+              console.error('Auto-join failed:', err);
+            }
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch event:', err);
       } finally {
@@ -78,7 +106,7 @@ export default function EventPage() {
     fetchData();
     const interval = setInterval(fetchData, 3000); // Poll every 3s
     return () => clearInterval(interval);
-  }, [userId, eventId]);
+  }, [userId, eventId, hasAutoJoined, isTelegram]);
 
   if (isTelegram === null) return null;
   if (isTelegram === false) return null;
@@ -87,6 +115,13 @@ export default function EventPage() {
 
   const attendeeCount = Object.keys(event.attendees).filter(uid => event.attendees[uid].checkedIn).length;
   const verificationProgress = Math.min(state.verifications.length, 3);
+  const attendeeList = Object.entries(event.attendees)
+    .filter(([_, a]) => a.checkedIn)
+    .map(([uid, a]) => ({
+      id: uid,
+      verifications: a.verifications?.length || 0,
+      checkedInAt: a.checkedInAt,
+    }));
 
   const handleCheckIn = () => {
     router.push(`/miniapp/event/${eventId}/scan?mode=checkin`);
@@ -136,7 +171,8 @@ export default function EventPage() {
     return (
       <main className="mx-auto min-h-screen w-full max-w-md bg-white px-5 py-6">
         <header className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.back()} className="text-lg">←</button>
             <ArkaLogo size={24} />
             <span className="text-sm font-bold text-arka-text">arka</span>
           </div>
@@ -179,7 +215,8 @@ export default function EventPage() {
     <main className="mx-auto min-h-screen w-full max-w-md bg-white">
       <header className="sticky top-0 z-10 bg-white px-5 py-4">
         <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.back()} className="text-lg">←</button>
             <ArkaLogo size={24} />
             <span className="text-sm font-bold text-arka-text">arka</span>
           </div>
@@ -321,12 +358,22 @@ export default function EventPage() {
           </button>
 
           <div className="mt-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-black/40">Attendees</p>
-            {Object.entries(event.attendees).filter(([_, a]) => a.checkedIn).map(([uid, a]) => (
-              <div key={uid} className="mb-1 text-xs text-black/60">
-                User {uid.slice(-4)} {a.verifications?.length > 0 ? `(${a.verifications.length} verif.)` : ''}
-              </div>
-            ))}
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-black/40">Live Attendees ({attendeeList.length})</p>
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              {attendeeList.map((att) => (
+                <div key={att.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-2 py-1.5">
+                  <span className="text-xs text-black/60">
+                    {att.id.startsWith('0x') ? `${att.id.slice(0, 6)}...${att.id.slice(-4)}` : `User ${att.id.slice(-4)}`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {att.verifications > 0 && (
+                      <span className="text-[10px] text-arka-green font-semibold">{att.verifications} verif.</span>
+                    )}
+                    <span className="text-[9px] text-black/30">{new Date(att.checkedInAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

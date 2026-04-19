@@ -1,7 +1,9 @@
 {
   "name": "prooffund",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=packages/app",
     "sync-abis": "cd packages/contracts && bash scripts/export-abi.sh && cp abi/*.json ../app/src/lib/abi/"

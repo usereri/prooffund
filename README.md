@@ -1,83 +1,113 @@
-# arka contracts
+# Arka
 
-Smart contracts for the **arka** community platform — a proof-of-commitment system built on EVM chains.
+**Real connections, real events.**
 
-## Overview
+Arka is a community engagement platform that bridges offline events with **on-chain reputation**. It turns passive communities into active, verifiable networks by proving who actually showed up and interacted.
 
-arka lets community hosts create on-chain events, track attendance via QR codes, and reward participants with reputation points. Hosts must stake ETH to create a community, ensuring long-term commitment.
+---
 
-## Contracts
+## 🚨 Problem
 
-### `UserProfileNFT` (ERC-721 — `src/identity/UserProfileNFT.sol`)
+Online communities are passive:
+- No proof of attendance  
+- No real interaction  
+- No accountability  
 
-Soul-bound identity token — one per wallet.
+People join, scroll, and leave — without contributing or building trust.
 
-- **Token name / symbol**: `CoworkID` / `CWID`
-- Stores per-community reputation scores
-- Tracks earned badges with reasons and timestamps
-- Authorized writers (e.g. `CommunityRegistry`) can add reputation and award badges
+---
 
-### `CommunityRegistry` (`src/registry/CommunityRegistry.sol`)
+## 💡 Solution
 
-Central registry for communities and events.
+Arka creates **communities that prove you showed up**.
 
-- Hosts stake a minimum of **0.01 ETH** to create a community
-- Stake is slashed to `feeRecipient` if a community is deactivated within **30 days**
-- Users must hold a `UserProfileNFT` profile before joining a community
-- Events are created with a `qrHash` (keccak256 of QR secret) and optional reputation gating
-- After an event ends, the host calls `finalizeEvent` with the attendee list — reputation is distributed and the leaderboard is updated automatically
+- Attendance is verified through real-world interaction  
+- Members build **on-chain reputation**  
+- Hosts create accountable, engaging events  
 
-## Architecture
+---
 
-```
-UserProfileNFT  ←──authorized writer──  CommunityRegistry
-     │                                         │
- identity / rep                         communities + events
-```
+## 🔑 Core Feature — QR Matching
 
-## Scripts
+Arka forces real interaction at events.
 
-| Script | Purpose |
-|---|---|
-| `Deploy.s.sol` | Deploy `UserProfileNFT` + `CommunityRegistry`, wire up permissions |
-| `DeployEvent.s.sol` | Create a test event on an existing community |
-| `FinalizeEvent.s.sol` | Finalize an event with a set of attendees |
-| `HelperConfig.s.sol` | Network-aware config (Anvil / Sepolia) |
+**How it works:**
+1. Attendees receive random numbers  
+2. They find their assigned match  
+3. They scan each other's QR codes  
 
-## Development
+➡️ Every interaction is **intentional and verified on-chain**
 
-**Prerequisites**: [Foundry](https://book.getfoundry.sh/)
+**Before Arka:** Attend → leave unnoticed  
+**With Arka:** Attend → match → talk → verify  
 
-```shell
-# Install dependencies
-forge install
+---
 
-# Build
-forge build
+## 🔄 How It Works
 
-# Run tests
-forge test
+1. Host creates a community  
+2. Members join  
+3. Events are organized  
+4. Attendees perform QR matching  
+5. Reputation is recorded on-chain  
 
-# Format
-forge fmt
+---
 
-# Local node
-anvil
-```
+## ⛓️ On-Chain Architecture
 
-## Deploy
+- **UserProfileNFT (ERC-721)**
+  - Tracks:
+    - trustScore  
+    - totalRespect  
+    - community memberships  
 
-```shell
-# Local (Anvil)
-forge script packages/contracts/script/Deploy.s.sol:Deploy \
-  --rpc-url http://localhost:8545 --broadcast
+- **CommunityRegistry**
+  - Manages:
+    - Events  
+    - Attendance  
+    - Leaderboards  
 
-# Sepolia
-forge script packages/contracts/script/Deploy.s.sol:Deploy \
-  --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast --verify
-```
+---
 
+## 🧱 Tech Stack
 
-## License
+- Frontend: Next.js, TypeScript, Tailwind  
+- Smart Contracts: Solidity, Foundry  
+- Blockchain: Arbitrum (Sepolia)  
+- Storage: Arweave  
+- Wallets: Dynamic SDK  
+- Platform: Telegram WebApp  
 
-GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
+---
+
+## ▶️ Demo
+
+- Web: https://arka.social
+- Telegram: https://t.me/arka_telegram_bot  
+
+Live on **Arbitrum Sepolia**
+
+---
+
+## 🗺️ Roadmap
+
+- MVP (current)  
+- Mainnet deployment  
+- Pro feature expansion  
+- Multi-chain support  
+- DAO governance  
+
+---
+
+## 🎯 Vision
+
+A world where:
+- Community participation is **verifiable**  
+- Reputation is **portable and on-chain**  
+- Events create **real human connections**, not passive audiences  
+
+---
+
+## ⚠️ Note
+
+Arka is currently in MVP stage and deployed on testnet (Arbitrum Sepolia).
